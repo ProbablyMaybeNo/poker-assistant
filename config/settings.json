@@ -1,0 +1,38 @@
+{
+  "capture": {
+    "interval_seconds": 2.5,
+    "window_title": "PokerStars",
+    "auto_detect_window": true
+  },
+  "detection": {
+    "card_confidence_threshold": 0.85,
+    "ocr_preprocessing": true,
+    "use_yolo": false,
+    "fallback_to_template_matching": true
+  },
+  "overlay": {
+    "enabled": true,
+    "opacity": 0.9,
+    "position": "bottom_right",
+    "always_on_top": true,
+    "font_size": 14,
+    "color_scheme": "dark"
+  },
+  "strategy": {
+    "style": "tight_aggressive",
+    "aggression_factor": 1.2,
+    "bluff_frequency": 0.15,
+    "use_position_adjustment": true
+  },
+  "performance": {
+    "gpu_acceleration": true,
+    "max_cpu_percent": 50,
+    "max_memory_mb": 2048
+  },
+  "logging": {
+    "enabled": true,
+    "log_level": "INFO",
+    "log_hands": true,
+    "log_detections": false
+  }
+}
