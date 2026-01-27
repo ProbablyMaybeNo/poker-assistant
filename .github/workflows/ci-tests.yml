@@ -210,15 +210,8 @@ jobs:
 
     - name: Test config loader utility
       run: |
-        python -c "
-        import sys
-        sys.path.insert(0, '.')
-        from src.utils.config_loader import ConfigLoader
-        config = ConfigLoader()
-        settings = config.load('settings.json')
-        print('Config loader working correctly!')
-        print(f'Capture interval: {settings[\"capture\"][\"interval_seconds\"]}')
-        "
+        python -c "import sys; sys.path.insert(0, '.'); from src.utils.config_loader import ConfigLoader; config = ConfigLoader(); settings = config.load('settings.json'); print('Config loader working correctly!'); print('Capture interval:', settings['capture']['interval_seconds'])"
+      shell: bash
 
   phase-status:
     name: Report Phase Status
