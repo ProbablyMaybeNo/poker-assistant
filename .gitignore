@@ -13,8 +13,12 @@ __pycache__/
 models/card_detector/*.pt
 models/card_detector/*.pth
 models/card_templates/*.png
-screenshots/
-logs/
+screenshots/*
+!screenshots/.gitkeep
+!screenshots/test_hands/.gitkeep
+!screenshots/calibration/.gitkeep
+logs/*
+!logs/.gitkeep
 
 # Config with personal data
 config/regions.json

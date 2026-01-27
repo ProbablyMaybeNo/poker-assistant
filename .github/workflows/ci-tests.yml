@@ -39,6 +39,11 @@ jobs:
         pip install -r requirements.txt
       timeout-minutes: 15
 
+    - name: Setup configuration files
+      run: |
+        cp config/regions.template.json config/regions.json
+      shell: bash
+
     - name: Run installation verification tests
       run: |
         python test_installation.py
@@ -130,7 +135,7 @@ jobs:
           "src/utils/logger.py",
           "src/utils/config_loader.py",
           "config/settings.json",
-          "config/regions.json",
+          "config/regions.template.json",
           "config/poker_rules.json",
           ".gitignore",
           "README.md"
@@ -190,6 +195,11 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+
+    - name: Setup configuration files
+      run: |
+        cp config/regions.template.json config/regions.json
+      shell: bash
 
     - name: Validate JSON configuration files
       run: |
