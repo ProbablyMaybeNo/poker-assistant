@@ -41,6 +41,7 @@ class GameState:
     current_bet: float
     betting_round: BettingRound
     position: Optional[Position] = None
+    num_opponents: int = 1
     
     def __str__(self):
         return (f"GameState(round={self.betting_round.value}, "
