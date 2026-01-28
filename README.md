@@ -5,6 +5,7 @@ An AI-powered poker assistant that uses computer vision to watch your PokerStars
 ## 🎯 Purpose
 
 This is a **learning and practice tool** designed for use with play money only on PokerStars simulator. It demonstrates advanced concepts in:
+
 - Computer Vision & Image Processing
 - Machine Learning & AI
 - Real-time Systems
@@ -26,57 +27,66 @@ This is a **learning and practice tool** designed for use with play money only o
 ## 📋 Features
 
 ### Phase 1: Environment Setup ✅
+
 - [x] Project structure and virtual environment
 - [x] Dependency management
 - [x] Configuration system
 - [x] Logging infrastructure
 
-### Phase 2: Screen Capture (In Progress)
-- [ ] Window detection for PokerStars
-- [ ] Region-based screen capture
-- [ ] Interactive calibration tool
-- [ ] Screenshot management
+### Phase 2: Screen Capture ✅
 
-### Phase 3: Card Detection (Planned)
-- [ ] Template matching for card recognition
-- [ ] OCR for chip counts and pot amounts
-- [ ] Game state tracking
-- [ ] Detection accuracy optimization
+- [x] Window detection for PokerStars
+- [x] Region-based screen capture
+- [x] Interactive calibration tool
+- [x] Screenshot management
 
-### Phase 4: Strategy Engine (Planned)
-- [ ] Hand evaluation (all poker hands)
-- [ ] Equity calculator (Monte Carlo simulation)
-- [ ] Pot odds calculator
-- [ ] Decision engine with strategic recommendations
+### Phase 3: Card Detection ✅
 
-### Phase 5: Overlay & Integration (Planned)
-- [ ] Transparent overlay window
-- [ ] Real-time display updates
-- [ ] Complete system integration
-- [ ] Performance optimization
+- [x] Template matching for card recognition
+- [x] OCR for chip counts and pot amounts
+- [x] Game state tracking
+- [x] Detection accuracy optimization
+
+### Phase 4: Strategy Engine ✅
+
+- [x] Hand evaluation (all poker hands)
+- [x] Equity calculator (Monte Carlo simulation)
+- [x] Pot odds calculator
+- [x] Decision engine with strategic recommendations
+
+### Phase 5: Overlay & Integration ✅
+
+- [x] Transparent overlay window
+- [x] Real-time display updates
+- [x] Complete system integration
+- [x] Performance optimization
 
 ## 🚀 Quick Start
 
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/ProbablyMaybeNo/poker-assistant.git
    cd poker-assistant
    ```
 
 2. **Create and activate virtual environment**
+
    ```bash
    python -m venv venv
    venv\Scripts\activate  # Windows
    ```
 
 3. **Install dependencies**
+
    ```bash
    pip install -r requirements.txt
    ```
 
 4. **Verify installation**
+
    ```bash
    python test_installation.py
    ```
@@ -122,11 +132,13 @@ poker_assistant/
 ## 🧪 Testing
 
 Run the installation verification:
+
 ```bash
 python test_installation.py
 ```
 
 This will verify:
+
 - All required packages are installed
 - CUDA/GPU availability (optional)
 - Project directory structure
@@ -135,21 +147,25 @@ This will verify:
 ## 📚 Dependencies
 
 ### Core Libraries
+
 - **numpy** - Numerical computing
 - **pillow** - Image processing
 - **opencv-python** - Computer vision
 - **mss** - Screen capture
 
 ### AI/ML Libraries
+
 - **torch** - PyTorch deep learning framework
 - **torchvision** - Computer vision models
 - **ultralytics** - YOLO object detection
 
 ### OCR & UI
+
 - **pytesseract** - Optical character recognition
 - **PyQt5** - GUI framework
 
 ### Utilities
+
 - **python-dotenv** - Environment configuration
 - **tqdm** - Progress bars
 - **pywin32** - Windows API access
@@ -181,21 +197,26 @@ Define screen regions for cards, pot, player stack, and action buttons. Use the 
 ### Common Issues
 
 **Python not found**
+
 - Install Python 3.11+ and add to PATH
 
 **Virtual environment activation fails**
+
 - Run: `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` in PowerShell
 
 **PyTorch CUDA not available**
+
 - Update NVIDIA drivers
 - Reinstall PyTorch with CUDA: `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121`
 
 **PokerStars window not found**
+
 - Ensure PokerStars is running
 - Check window title in `config/settings.json`
 - Try running as administrator
 
 **Cards not detected**
+
 - Recalibrate regions using the calibration tool
 - Adjust confidence threshold in settings
 - Verify screenshot quality
@@ -208,6 +229,7 @@ See `logs/errors.log` for detailed error information.
 **Next Phase**: Phase 2 - Screen Capture System
 
 ### Phase 1 Completion Checklist
+
 - [x] Project structure created
 - [x] Virtual environment setup
 - [x] All dependencies installed
