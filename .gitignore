@@ -22,6 +22,7 @@ logs/*
 
 # Config with personal data
 config/regions.json
+config/anchor_config.json
 
 # IDE
 .vscode/
@@ -33,7 +34,10 @@ config/regions.json
 .DS_Store
 Thumbs.db
 
-# Temporary files
+# Temporary and Debug files
 *.tmp
 *.log
 *.csv
+debug_*
+debug_output.txt
+models/test_anchors/
