@@ -463,10 +463,11 @@ if __name__ == "__main__":
             # Structure for regions.json
             output = {
                 "window": {
-                    "title": "Ignition", 
-                    "x": 0, "y": 0,
-                    "width": regions["window"]["width"],
-                    "height": regions["window"]["height"]
+                    "title": regions["window"].get("title", "Ignition"), 
+                    "x": regions["window"]["window"]["x"],
+                    "y": regions["window"]["window"]["y"],
+                    "width": regions["window"]["window"]["width"],
+                    "height": regions["window"]["window"]["height"]
                 },
                 "regions": regions["regions"]
             }

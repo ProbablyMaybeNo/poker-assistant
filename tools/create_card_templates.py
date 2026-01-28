@@ -170,18 +170,69 @@ class TemplateCreatorApp(QMainWindow):
         # Capture
         capture_img = self.grabber.capture_region(abs_x, abs_y, rw, rh)
         
-        # DEBUG: Save full capture to see what we are grabbing
-        cv2.imwrite("debug_last_capture_full.png", capture_img)
-        print(f"DEBUG: Saved full capture to debug_last_capture_full.png. Size: {capture_img.shape}")
-
         if capture_img is None:
             self.lbl_status.setText("Failed to capture screen!")
             return
             
-        # Split logic
-        mid_x = rw // 2
+        # Split/Isolate logic: Find the two actual card bodies
+        def isolate_cards(img):
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            # Use Otsu's thresholding for automatic brightness detection
+            _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            img_h, img_w = img.shape[:2]
+            candidates = []
+            for cnt in contours:
+                x, y, w, h = cv2.boundingRect(cnt)
+                # Poker cards are usually taller than wide or square
+                # Ignore things in the bottom of the capture
+                if y < img_h * 0.7 and w > 15 and h > 15:
+                    candidates.append((x, y, w, h))
+            
+            # Sort candidates by area to find main bodies
+            candidates.sort(key=lambda c: c[2] * c[3], reverse=True)
+            
+            if len(candidates) >= 2:
+                # Take the top two largest objects
+                top_two = sorted(candidates[:2], key=lambda c: c[0])
+                left_card = top_two[0]
+                right_card = top_two[1]
+                
+                # If they are very close or overlapped, split exactly in the middle of the pair
+                # Otherwise split in the gap
+                mid_point = (left_card[0] + left_card[2] + right_card[0]) // 2
+                return mid_point, candidates
+            
+            elif len(candidates) == 1:
+                # Only one big blob found (likely cards merged)
+                # Split that blob in its center if it's wide enough
+                x, y, w, h = candidates[0]
+                if w > 80: # A single card is ~60-80px in this view, so > 80 is likely two
+                    return x + (w // 2), candidates
+            
+            # Final fallback
+            return img_w // 2, candidates
+
+        if region_name == "hero_cards":
+            mid_x, candidates = isolate_cards(capture_img)
+            print(f"DEBUG: Smart-split at x={mid_x} among {len(candidates)} candidates")
+        else:
+            mid_x = capture_img.shape[1] // 2
+            candidates = []
+            
         self.current_left_card = capture_img[:, :mid_x]
         self.current_right_card = capture_img[:, mid_x:]
+        
+        # DEBUG: Save split visualization
+        debug_vis = capture_img.copy()
+        # Draw all candidates
+        for (cx, cy, cw, ch) in candidates:
+            cv2.rectangle(debug_vis, (cx, cy), (cx+cw, cy+ch), (255, 0, 0), 2)
+        # Draw split line
+        cv2.line(debug_vis, (mid_x, 0), (mid_x, debug_vis.shape[0]), (0, 255, 0), 2)
+        cv2.imwrite("debug_last_capture_full.png", debug_vis)
+        print(f"DEBUG: Saved split visualization with {len(candidates)} candidates.")
         
         # Display
         self.display_image(self.current_left_card, self.lbl_left_img)

@@ -20,165 +20,145 @@ def process_templates():
     
     # Iterate over all pngs
     files = list(RAW_DIR.glob("*.png"))
+    # Clear existing templates for a clean rebuild
+    for d in [RANK_DIR, SUIT_DIR]:
+        if d.exists():
+            for f in d.glob("*.png"):
+                f.unlink()
+    
     print(f"Found {len(files)} raw templates.")
     
     for f in files:
-        name = f.stem # e.g. "Ah"
-        if len(name) != 2:
-            print(f"Skipping {name}: invalid format (needs 2 chars, e.g., 'Ah', 'Td')")
+        name = f.stem # e.g. "Ah", "10c"
+        
+        if len(name) == 2:
+            rank_char = name[0] # 'A'
+            suit_char = name[1] # 'h'
+        elif len(name) == 3 and name.startswith("10"):
+            rank_char = "T" # Map 10 to T
+            suit_char = name[2] # 'c'
+        else:
+            print(f"Skipping {name}: invalid format (needs 'Ah' or '10h')")
             continue
             
-        rank_char = name[0] # 'A'
-        suit_char = name[1] # 'h'
-        
         # Validate chars
         if rank_char not in "23456789TJQKA":
-            print(f"Skipping {name}: invalid rank {rank_char}")
+            print(f"Skipping {name}: invalid rank {rank_char} from {name}")
             continue
         if suit_char not in "hdcs":
-            print(f"Skipping {name}: invalid suit {suit_char}")
+            print(f"Skipping {name}: invalid suit {suit_char} from {name}")
             continue
 
         img = cv2.imread(str(f))
-        if img is None:
-            print(f"Error reading {f}")
-            continue
-            
+        if img is None: continue
+        
         # Convert to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        # Debug "Ah" specifically
-        if name == "Ah":
-            print(f"DEBUG Ah: Shape={gray.shape}")
-            cv2.imwrite(str(OUT_DIR / "debug_Ah_gray.png"), gray)
+        # 1. Isolate the bright card body using Otsu's Binarization
+        # This separates the card from the table background automatically
+        _, card_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        card_contours, _ = cv2.findContours(card_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        # Crop Top-Left Corner Region of Interest (ROI)
-        # Increase area key info
-        h, w = gray.shape
-        roi_w = int(w * 0.55) # Wider
-        roi_h = int(h * 1.0) # Full height of left side? No, rank/suit is top ~70% usually.
-        # Let's go safe.
-        roi_h = int(h * 0.70)
-        roi = gray[0:roi_h, 0:roi_w]
+        # Cards are the largest white blobs
+        card_candidates = []
+        for cnt in card_contours:
+            x, y, cw, ch = cv2.boundingRect(cnt)
+            if cw > 40 and ch > 60:
+                card_candidates.append((x, y, cw, ch))
         
-        # Contrast Enhancement
-        roi = cv2.equalizeHist(roi)
-        
-        if name == "Ah":
-             # Pixel stats
-             print(f"DEBUG Ah: ROI stats - Min={np.min(roi)}, Max={np.max(roi)}, Mean={np.mean(roi):.2f}")
-             cv2.imwrite(str(OUT_DIR / "debug_Ah_roi.png"), roi)
+        if not card_candidates:
+            roi = gray
+        else:
+            # Take the LARGEST candidate (The Card) to avoid small high-up UI elements
+            card_candidates.sort(key=lambda c: c[2] * c[3], reverse=True)
+            cx, cy, cw, ch = card_candidates[0]
+            # Crop to top-left of card (Rank and Suit)
+            # 50% width and 65% height to ensure full 10 and JQK are caught
+            roi = gray[cy:cy + int(ch*0.65), cx:cx + int(cw*0.50)]
 
-        # Threshold: Use Otsu's Binarization
-        # This automatically finds the best threshold value.
+        # Debug save ROI
+        cv2.imwrite(str(OUT_DIR / f"debug_roi_{name}.png"), roi)
+
+        # 2. Extract symbols from the card ROI
+        # Rank and Suit are the darkest things on the card
         _, thresh = cv2.threshold(roi, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
         
-        if name == "Ah":
-             cv2.imwrite(str(OUT_DIR / "debug_Ah_thresh.png"), thresh)
-
-        # Find contours
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Find contours with hierarchy
+        contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
-        if name == "Ah":
-            print(f"DEBUG Ah: Found {len(contours)} contours")
-        
-        # We expect at least 2 significant contours: Rank (top) and Suit (bottom).
-        # Filter small noise.
+        # Filter for significant chunks that are LIKELY Rank or Suit
         valid_contours = []
-        for cnt in contours:
-            x, y, cw, ch = cv2.boundingRect(cnt)
-            if cw * ch > 30: # Lowered min area slightly
-                valid_contours.append((x, y, cw, ch))
-                
-        # Sort by Y position (Rank is above Suit)
-        valid_contours.sort(key=lambda c: c[1])
+        if hierarchy is not None:
+            hi = hierarchy[0]
+            for i, cnt in enumerate(contours):
+                x, y, w, h = cv2.boundingRect(cnt)
+                # If it's a child (has a parent) it's more likely to be a symbol inside the card body
+                # Or if it's external but within size bounds.
+                parent_idx = hi[i][3]
+                if w > 4 and h > 8:
+                    # Prefer children of the main ROI or significant chunks
+                    valid_contours.append((x, y, w, h))
         
-        if len(valid_contours) < 2:
-            print(f"Warning: {name} - Found {len(valid_contours)} contours (expected >=2). Using fallback crop.")
-            # Fallback to fixed split if detection fails
-            rank_h = int(roi_h * 0.55)
-            # Ensure ROI is valid
-            if rank_h > 0 and roi.shape[1] > 0:
-                rank_img = roi[0:rank_h, :]
-                suit_img = roi[rank_h:, :]
-            else:
-                 print(f"Error: ROI too small for {name}")
-                 continue
-        else:
-            # Rank is the top-most significant contour (or group of contours if '10')
-            # Suit is the contour below it.
-            
-            # Special case for '10': The rank is '1' and '0'. They might be separate contours.
-            # If standard ranks are single chars, '10' might be two side-by-side.
-            
-            # Let's take the top-most extraction as Rank.
-            # If we have > 2 contours, we need to group the top ones for rank?
-            
-            # Heuristic: Check the first two contours. If they are horizontally adjacent (similar Y, close X), they are "10".
-            # The suit is usually strictly below.
-            
-            c1 = valid_contours[0]
-            c2 = valid_contours[1]
-            
-            # Check Y-overlap or proximity
-            # c = (x, y, w, h)
-            # If c2.y is close to c1.y (within 50% of height), it's part of the rank (Rank 10)
-            
-            rank_rects = [c1]
-            suit_rect = c2
-            
-            if abs(c1[1] - c2[1]) < (c1[3] * 0.5):
-                # c2 is part of rank (10)
-                rank_rects.append(c2)
-                if len(valid_contours) > 2:
-                    suit_rect = valid_contours[2]
-                else:
-                    # Missing suit?
-                    print(f"Warning: {name} - Likely '10' but missing suit contour. Using fallback.")
-                    rank_h = int(roi_h * 0.55)
-                    rank_img = roi[0:rank_h, :]
-                    suit_img = roi[rank_h:, :]
-                    
-                    # Save and continue
-                    cw_path = RANK_DIR / f"{rank_char}.png"
-                    cv2.imwrite(str(cw_path), rank_img)
-                    continue
+        # Determine the split point: Half-split based on the card body's top-left ROI
+        h_roi, w_roi = roi.shape
+        mid_y = int(h_roi * 0.5)
+        
+        # Upper half is for the Rank, bottom half is for the Suit
+        rank_half = roi[0:mid_y, :]
+        suit_half = roi[mid_y:, :]
 
-            # Merge rank rects
-            min_x = min([r[0] for r in rank_rects])
-            min_y = min([r[1] for r in rank_rects])
-            max_x = max([r[0] + r[2] for r in rank_rects])
-            max_y = max([r[1] + r[3] for r in rank_rects])
+        def extract_symbol(sub_roi, min_w=4, min_h=8):
+            """Finds the bounding box of symbols in a sub-ROI and crops it."""
+            _, s_thresh = cv2.threshold(sub_roi, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+            # Find all contours
+            s_contours, _ = cv2.findContours(s_thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             
-            # Add padding
-            pad = 2
-            h_img, w_img = roi.shape
-            r_y1 = max(0, min_y - pad)
-            r_y2 = min(h_img, max_y + pad)
-            r_x1 = max(0, min_x - pad)
-            r_x2 = min(w_img, max_x + pad)
+            sh, sw = sub_roi.shape
+            valid = []
+            for c in s_contours:
+                x, y, w, h = cv2.boundingRect(c)
+                # PIXEL FILTER: Symbols start at least 5-10 pixels from the left ROI edge.
+                # ROI Margin is usually at x=0.
+                if w >= min_w and h >= min_h and x > 5 and w < sw * 0.8:
+                    valid.append((x, y, w, h))
             
-            rank_img = roi[r_y1:r_y2, r_x1:r_x2]
+            if not valid:
+                return sub_roi, False
             
-            # Suit rect
-            sx, sy, sw, sh = suit_rect
-            s_y1 = max(0, sy - pad)
-            s_y2 = min(h_img, sy + sh + pad)
-            s_x1 = max(0, sx - pad)
-            s_x2 = min(w_img, sx + sw + pad)
+            # Merge all significant symbols
+            x1 = min(c[0] for c in valid)
+            y1 = min(c[1] for c in valid)
+            x2 = max(c[0] + c[2] for c in valid)
+            y2 = max(c[1] + c[3] for c in valid)
             
-            suit_img = roi[s_y1:s_y2, s_x1:s_x2]
+            pad = 1
+            cropped = sub_roi[max(0, y1-pad):min(sub_roi.shape[0], y2+pad), 
+                              max(0, x1-pad):min(sub_roi.shape[1], x2+pad)]
+            return cropped, True 
 
-        # Save
+        # Split point: Half-split based on the card body's top-left ROI
+        h_roi, w_roi = roi.shape
+        mid_y = int(h_roi * 0.5)
+        
+        # Upper half is for the Rank, bottom half is for the Suit
+        rank_half = roi[0:mid_y, :]
+        suit_half = roi[mid_y:, :]
+        
+        rank_img, rank_ok = extract_symbol(rank_half)
+        suit_img, suit_ok = extract_symbol(suit_half)
+
+        # Save Rank (Only if success or not already existing)
         rank_path = RANK_DIR / f"{rank_char}.png"
+        if rank_ok:
+            cv2.imwrite(str(rank_path), rank_img)
+            
+        # Save Suit (Only if success or not already existing)
         suit_path = SUIT_DIR / f"{suit_char}.png"
+        if suit_ok:
+            cv2.imwrite(str(suit_path), suit_img)
         
-        # Only save if not exists or overwrite?
-        # Let's overwrite to ensure latest version
-        cv2.imwrite(str(rank_path), rank_img)
-        cv2.imwrite(str(suit_path), suit_img)
-        
-        print(f"Processed {name} -> Rank: {rank_char}, Suit: {suit_char}")
+        print(f"Processed {name} -> Rank: {rank_char}, Suit: {suit_char} (R:{rank_ok}, S:{suit_ok})")
 
 if __name__ == "__main__":
     process_templates()
