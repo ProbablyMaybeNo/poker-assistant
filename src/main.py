@@ -1,12 +1,16 @@
 """
 Main entry point for Poker AI Assistant.
 Integrates capture, detection, strategy, and UI.
+
+Architecture:
+- GameLoop (QThread): Background thread for game logic
+- DisplayManager: Handles PyQt5 overlay window
+- Components: WindowFinder, ScreenGrabber, AnchorManager, CardDetector, TextReader, DecisionEngine
 """
 import sys
 import time
-import threading
 from pathlib import Path
-from PyQt5.QtCore import QThread, pyqtSignal, QObject
+from PyQt5.QtCore import QThread, pyqtSignal
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -17,132 +21,141 @@ from src.utils.config_loader import config_loader
 from src.capture.window_finder import WindowFinder
 from src.capture.screen_grabber import ScreenGrabber
 from src.capture.anchor_manager import AnchorManager
-from src.capture.region_mapper import RegionMapper
 from src.detection.card_detector import CardDetector
+from src.detection.text_reader import TextReader
 from src.detection.game_state import GameStateTracker
 from src.strategy.decision_engine import DecisionEngine
 from src.ui.display_manager import DisplayManager
 
+
 class GameLoop(QThread):
-    """Background thread for game logic."""
-    update_signal = pyqtSignal(object)  # Emits (decision, game_state)
-    
+    """Background thread for game logic pipeline."""
+    update_signal = pyqtSignal(object)
+
     def __init__(self):
         super().__init__()
         self.running = True
-        
+
+        # Load configuration
+        try:
+            self.config = config_loader.load('settings.json')
+        except Exception:
+            self.config = {}
+
+        self.window_title = self.config.get('capture', {}).get('window_title', 'Ignition')
+        self.loop_interval = self.config.get('capture', {}).get('interval_seconds', 1.0)
+
         # Initialize components
-        self.window_finder = WindowFinder()
+        self.window_finder = WindowFinder(self.window_title)
         self.screen_grabber = ScreenGrabber()
         self.anchor_manager = AnchorManager()
-        self.region_mapper = RegionMapper()
         self.card_detector = CardDetector()
+        self.text_reader = TextReader()
         self.tracker = GameStateTracker()
         self.decision_engine = DecisionEngine()
-        
-        # Load config
+
+        # Load anchor config
         self.anchor_manager.load_config()
         if not self.anchor_manager.active_anchor_name:
-            logger.warning("No active anchor found. Please run tools/calibrate_anchors.py")
+            logger.warning("No active anchor. Run tools/calibrate_anchors.py first.")
 
     def run(self):
-        """Main game loop."""
-        logger.info("Game Logic Thread Started")
-        
+        """Main game loop - runs in background thread."""
+        logger.info("Game loop started")
+
         while self.running:
             try:
-                # 1. Find Window
-                rect = self.window_finder.find_window("PokerStars") # Make configurable
-                if not rect:
-                    time.sleep(2)
-                    continue
-                
-                # 2. Capture Screen (focusing on window area for efficiency)
-                # For simplicity, we might capture full screen or use rect if ScreenGrabber supports it
-                # Assuming full screen capture for now to look for anchor
-                screen = self.screen_grabber.capture_screen() 
-                
-                # 3. Find Anchor & Update Regions
-                anchor_pos = self.anchor_manager.find_anchor(screen)
-                if not anchor_pos:
-                    # logger.debug("Anchor not found")
-                    time.sleep(0.5)
-                    continue
-                
-                # Update absolute regions based on anchor
-                # Note: AnchorManager.find_anchor returns (x, y, w, h)
-                # We typically need just (x, y) for get_absolute_regions
-                ax, ay, aw, ah = anchor_pos
-                regions = self.anchor_manager.get_absolute_regions((ax, ay))
-                self.region_mapper.update_regions(regions)
-                
-                # 4. Detect Cards & State
-                # Extract regions for detection
-                hole_cards_img = self.screen_grabber.extract_region(screen, regions.get('hole_cards'))
-                community_img = self.screen_grabber.extract_region(screen, regions.get('community_cards'))
-                
-                if hole_cards_img is None:
-                    continue
-                
-                hole_cards = self.card_detector.detect_hand(hole_cards_img)
-                community_cards = self.card_detector.detect_hand(community_img)
-                
-                # TODO: Implement Pot/Stack OCR here
-                pot_size = 0.0
-                stack_size = 100.0
-                current_bet = 0.0
-                
-                # 5. Update Game State
-                game_state = self.tracker.update_state(
-                    hole_cards=hole_cards,
-                    community_cards=community_cards,
-                    pot_size=pot_size,
-                    stack_size=stack_size,
-                    current_bet=current_bet
-                )
-                
-                # 6. Make Decision
-                decision = self.decision_engine.decide(game_state)
-                
-                # 7. Update UI
-                self.update_signal.emit({
-                    'decision': decision,
-                    'game_state': game_state
-                })
-                
-                # Pace the loop
-                time.sleep(1.0) # Adjust based on performance needs
-                
+                self._process_frame()
+                time.sleep(self.loop_interval)
             except Exception as e:
-                logger.error(f"Error in game loop: {e}")
-                time.sleep(1)
+                logger.error(f"Game loop error: {e}")
+                time.sleep(2)
+
+    def _process_frame(self):
+        """Process single frame: capture -> detect -> decide -> display."""
+        # 1. Find poker window
+        if not self.window_finder.find_window():
+            return
+
+        # 2. Capture full screen
+        screen = self.screen_grabber.capture_screen()
+        if screen is None:
+            return
+
+        # 3. Find anchor and get absolute regions
+        anchor_pos = self.anchor_manager.find_anchor(screen)
+        if anchor_pos is None:
+            logger.debug("Anchor not found on screen")
+            return
+
+        ax, ay, _, _ = anchor_pos
+        regions = self.anchor_manager.get_absolute_regions((ax, ay))
+
+        # 4. Extract and detect cards
+        hole_img = self.screen_grabber.extract_region(screen, regions.get('hole_cards'))
+        community_img = self.screen_grabber.extract_region(screen, regions.get('community_cards'))
+
+        hole_cards = self.card_detector.detect_hand(hole_img, num_cards=2) if hole_img is not None else []
+        community_cards = self.card_detector.detect_community_cards(community_img) if community_img is not None else []
+
+        # 5. OCR for pot/stack/bet
+        pot_img = self.screen_grabber.extract_region(screen, regions.get('pot_amount'))
+        stack_img = self.screen_grabber.extract_region(screen, regions.get('player_stack'))
+        bet_img = self.screen_grabber.extract_region(screen, regions.get('current_bet'))
+
+        pot_size = self.text_reader.read_pot_amount(pot_img) if pot_img is not None else None
+        stack_size = self.text_reader.read_stack_size(stack_img) if stack_img is not None else None
+        current_bet = self.text_reader.read_bet_amount(bet_img) if bet_img is not None else None
+
+        # 6. Update game state
+        game_state = self.tracker.update_state(
+            hole_cards=hole_cards,
+            community_cards=community_cards,
+            pot_size=pot_size,
+            stack_size=stack_size,
+            current_bet=current_bet
+        )
+
+        # 7. Make decision (only if we have hole cards)
+        if len(hole_cards) >= 2:
+            decision = self.decision_engine.decide(game_state)
+            self.update_signal.emit({'decision': decision, 'game_state': game_state})
 
     def stop(self):
+        """Stop the game loop gracefully."""
         self.running = False
         self.wait()
 
+
 def main():
     """Main application entry point."""
-    logger.info("="*50)
-    logger.info("Poker AI Assistant - Starting Up")
-    logger.info("="*50)
-    
+    logger.info("=" * 50)
+    logger.info("Poker AI Assistant - Starting")
+    logger.info("=" * 50)
+
     try:
-        # Initialize UI Manager (creates QApplication)
-        # Note: We don't verify WindowFinder etc here, GameLoop handles it
-        display_manager = DisplayManager(None) # RegionMapper passed to overlay if needed
-        
-        # Start Game Logic Thread
+        # Initialize UI (creates QApplication)
+        display_manager = DisplayManager(None)
+
+        # Start game logic thread
         game_thread = GameLoop()
         game_thread.update_signal.connect(display_manager.update_overlay)
         game_thread.start()
-        
-        # Start UI Event Loop
-        sys.exit(display_manager.app.exec_())
-        
+
+        # Run Qt event loop (blocks until exit)
+        exit_code = display_manager.app.exec_()
+
+        # Cleanup
+        game_thread.stop()
+        logger.info("Poker AI Assistant - Shutdown complete")
+        sys.exit(exit_code)
+
     except Exception as e:
-        logger.critical(f"Critical error: {e}")
+        logger.critical(f"Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
+
 
 if __name__ == "__main__":
     main()
