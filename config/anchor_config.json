@@ -1,0 +1,17 @@
+{
+  "active_anchor": "test_anchor",
+  "regions": {
+    "hole_cards": {
+      "off_x": 100,
+      "off_y": 100,
+      "w": 80,
+      "h": 50
+    },
+    "test": {
+      "off_x": 100,
+      "off_y": 100,
+      "w": 50,
+      "h": 50
+    }
+  }
+}
