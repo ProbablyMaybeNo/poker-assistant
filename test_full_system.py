@@ -47,7 +47,7 @@ class TestFullSystem(unittest.TestCase):
         from src.strategy.decision_engine import DecisionEngine
         try:
             engine = DecisionEngine()
-            self.assertIsNotNone(engine.evaluator)
+            self.assertIsNotNone(engine.hand_evaluator)
             self.assertIsNotNone(engine.equity_calc)
         except Exception as e:
             self.fail(f"DecisionEngine init failed: {e}")
