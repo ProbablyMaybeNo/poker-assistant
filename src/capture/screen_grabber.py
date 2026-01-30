@@ -13,7 +13,8 @@ class ScreenGrabber:
 
     def __init__(self):
         """Initialize screen grabber."""
-        self.sct = mss.mss()
+        # Don't create MSS here - it's not thread-safe
+        # MSS will be created fresh for each capture operation
         self.last_capture = None
         self.last_full_screen = None
         self.capture_count = 0
@@ -29,28 +30,30 @@ class ScreenGrabber:
             Numpy array (BGR format) of full screen or None on error
         """
         try:
-            # Get monitor info (0 = all monitors combined, 1+ = individual monitors)
-            monitors = self.sct.monitors
-            if monitor_index >= len(monitors):
-                logger.warning(f"Monitor index {monitor_index} out of range, using primary")
-                monitor_index = 1 if len(monitors) > 1 else 0
+            # Create MSS instance fresh for thread safety
+            with mss.mss() as sct:
+                # Get monitor info (0 = all monitors combined, 1+ = individual monitors)
+                monitors = sct.monitors
+                if monitor_index >= len(monitors):
+                    logger.warning(f"Monitor index {monitor_index} out of range, using primary")
+                    monitor_index = 1 if len(monitors) > 1 else 0
 
-            monitor = monitors[monitor_index]
+                monitor = monitors[monitor_index]
 
-            # Capture screenshot
-            screenshot = self.sct.grab(monitor)
+                # Capture screenshot
+                screenshot = sct.grab(monitor)
 
-            # Convert to numpy array
-            img = np.array(screenshot)
+                # Convert to numpy array
+                img = np.array(screenshot)
 
-            # Convert BGRA to BGR (remove alpha, keep BGR order from MSS)
-            img = img[:, :, :3]
+                # Convert BGRA to BGR (remove alpha, keep BGR order from MSS)
+                img = img[:, :, :3]
 
-            self.last_full_screen = img
-            self.capture_count += 1
+                self.last_full_screen = img
+                self.capture_count += 1
 
-            logger.debug(f"Captured full screen: {img.shape}")
-            return img
+                logger.debug(f"Captured full screen: {img.shape}")
+                return img
 
         except Exception as e:
             logger.error(f"Error capturing full screen: {e}")
@@ -115,20 +118,20 @@ class ScreenGrabber:
         logger.debug(f"Extracted region ({x}, {y}, {width}, {height}): shape {extracted.shape}")
         return extracted
     
-    def capture_region(self, 
-                       x: int, 
-                       y: int, 
-                       width: int, 
+    def capture_region(self,
+                       x: int,
+                       y: int,
+                       width: int,
                        height: int) -> Optional[np.ndarray]:
         """
         Capture specific screen region.
-        
+
         Args:
             x: Left coordinate
             y: Top coordinate
             width: Region width
             height: Region height
-        
+
         Returns:
             Numpy array (BGR format) or None on error
         """
@@ -140,22 +143,24 @@ class ScreenGrabber:
                 "width": width,
                 "height": height
             }
-            
-            # Capture screenshot
-            screenshot = self.sct.grab(monitor)
-            
-            # Convert to numpy array (RGB)
-            img = np.array(screenshot)
-            
-            # Convert RGB to BGR (OpenCV format)
-            img = img[:, :, :3]  # Remove alpha channel
-            img = img[:, :, ::-1]  # RGB to BGR
-            
-            self.last_capture = img
-            self.capture_count += 1
-            
-            return img
-            
+
+            # Create MSS instance fresh for thread safety
+            with mss.mss() as sct:
+                # Capture screenshot
+                screenshot = sct.grab(monitor)
+
+                # Convert to numpy array (RGB)
+                img = np.array(screenshot)
+
+                # Convert RGB to BGR (OpenCV format)
+                img = img[:, :, :3]  # Remove alpha channel
+                img = img[:, :, ::-1]  # RGB to BGR
+
+                self.last_capture = img
+                self.capture_count += 1
+
+                return img
+
         except Exception as e:
             logger.error(f"Error capturing region ({x},{y},{width},{height}): {e}")
             return None
@@ -220,6 +225,5 @@ class ScreenGrabber:
         }
     
     def __del__(self):
-        """Cleanup."""
-        if hasattr(self, 'sct'):
-            self.sct.close()
+        """Cleanup - no longer needed as MSS is created fresh each time."""
+        pass

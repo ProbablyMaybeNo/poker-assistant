@@ -1,17 +1,41 @@
 {
-  "active_anchor": "test_anchor",
+  "active_anchor": "ignition_logo",
+  "anchors": {
+    "ignition_logo": {
+      "image_path": "models/anchors/ignition_logo.png",
+      "threshold": 0.7
+    }
+  },
   "regions": {
     "hole_cards": {
-      "off_x": 100,
-      "off_y": 100,
-      "w": 80,
-      "h": 50
+      "off_x": -385,
+      "off_y": 30,
+      "w": 95,
+      "h": 70
     },
-    "test": {
-      "off_x": 100,
-      "off_y": 100,
-      "w": 50,
-      "h": 50
+    "community_cards": {
+      "off_x": -160,
+      "off_y": -195,
+      "w": 490,
+      "h": 125
+    },
+    "pot_amount": {
+      "off_x": 25,
+      "off_y": -250,
+      "w": 145,
+      "h": 35
+    },
+    "player_stack": {
+      "off_x": -345,
+      "off_y": 135,
+      "w": 65,
+      "h": 30
+    },
+    "current_bet": {
+      "off_x": -390,
+      "off_y": 168,
+      "w": 115,
+      "h": 32
     }
   }
 }

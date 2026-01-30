@@ -5,12 +5,15 @@ Integrates capture, detection, strategy, and UI.
 Architecture:
 - GameLoop (QThread): Background thread for game logic
 - DisplayManager: Handles PyQt5 overlay window
+- ControlPanelWindow: Main control interface
+- SystemTrayManager: System tray integration
 - Components: WindowFinder, ScreenGrabber, AnchorManager, CardDetector, TextReader, DecisionEngine
 """
 import sys
 import time
 from pathlib import Path
 from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtWidgets import QApplication
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -28,6 +31,7 @@ from src.detection.text_reader import TextReader
 from src.detection.game_state import GameStateTracker
 from src.strategy.decision_engine import DecisionEngine
 from src.ui.display_manager import DisplayManager
+from src.ui.control_panel import ControlPanelWindow, SystemTrayManager
 
 
 class GameLoop(QThread):
@@ -62,10 +66,40 @@ class GameLoop(QThread):
         self.frame_count = 0
         self.perf_log_interval = 100  # Log stats every 100 frames
 
+        # Manual card override (from Control Panel)
+        self._manual_hole_cards = []
+        self._manual_community_cards = []
+        self._use_manual_cards = False
+
         # Load anchor config
         self.anchor_manager.load_config()
         if not self.anchor_manager.active_anchor_name:
             logger.warning("No active anchor. Run tools/calibrate_anchors.py first.")
+
+    def set_running(self, running: bool):
+        """
+        Set running state from external control (Control Panel).
+
+        Args:
+            running: True to enable processing, False to pause
+        """
+        self.running = running
+        logger.info(f"Game loop running state set to: {running}")
+
+    def set_manual_cards(self, hole_cards: list, community_cards: list):
+        """
+        Set manual card override from Control Panel.
+
+        When manual cards are set (non-empty), they override detected cards.
+
+        Args:
+            hole_cards: List of hole card strings, e.g. ["Ah", "Ks"]
+            community_cards: List of community card strings
+        """
+        self._manual_hole_cards = hole_cards or []
+        self._manual_community_cards = community_cards or []
+        self._use_manual_cards = bool(hole_cards) or bool(community_cards)
+        logger.debug(f"Manual cards set: hole={hole_cards}, community={community_cards}")
 
     def run(self):
         """Main game loop - runs in background thread."""
@@ -103,13 +137,20 @@ class GameLoop(QThread):
                 ax, ay, _, _ = anchor_pos
                 regions = self.anchor_manager.get_absolute_regions((ax, ay))
 
-            # 4. Extract and detect cards
+            # 4. Extract and detect cards (or use manual override)
             with self.perf.track("card_detection"):
-                hole_img = self.screen_grabber.extract_region(screen, regions.get('hole_cards'))
-                community_img = self.screen_grabber.extract_region(screen, regions.get('community_cards'))
+                # Check for manual card override
+                if self._use_manual_cards and self._manual_hole_cards:
+                    hole_cards = self._manual_hole_cards
+                else:
+                    hole_img = self.screen_grabber.extract_region(screen, regions.get('hole_cards'))
+                    hole_cards = self.card_detector.detect_hand(hole_img, num_cards=2) if hole_img is not None else []
 
-                hole_cards = self.card_detector.detect_hand(hole_img, num_cards=2) if hole_img is not None else []
-                community_cards = self.card_detector.detect_community_cards(community_img) if community_img is not None else []
+                if self._use_manual_cards and self._manual_community_cards:
+                    community_cards = self._manual_community_cards
+                else:
+                    community_img = self.screen_grabber.extract_region(screen, regions.get('community_cards'))
+                    community_cards = self.card_detector.detect_community_cards(community_img) if community_img is not None else []
 
             # 5. OCR for pot/stack/bet
             with self.perf.track("ocr_reading"):
@@ -163,16 +204,91 @@ def main():
     logger.info("=" * 50)
 
     try:
-        # Initialize UI (creates QApplication)
+        # Initialize Qt Application
+        app = QApplication(sys.argv)
+        app.setQuitOnLastWindowClosed(False)  # Keep running in tray
+
+        # Initialize Display Manager (overlay)
         display_manager = DisplayManager(None)
 
-        # Start game logic thread
+        # Initialize Control Panel
+        control_panel = ControlPanelWindow()
+
+        # Initialize System Tray
+        tray_manager = SystemTrayManager()
+        tray_manager.set_panel_window(control_panel)
+        control_panel.set_tray_manager(tray_manager)
+
+        # Initialize Game Loop
         game_thread = GameLoop()
+
+        # === Connect Signals ===
+
+        # GameLoop -> UI updates
         game_thread.update_signal.connect(display_manager.update_overlay)
+        game_thread.update_signal.connect(control_panel.on_game_state_updated)
+
+        # Control Panel -> GameLoop
+        control_panel.manual_cards_changed.connect(game_thread.set_manual_cards)
+        control_panel.start_stop_toggled.connect(game_thread.set_running)
+        control_panel.start_stop_toggled.connect(tray_manager.set_running)
+
+        # System Tray -> GameLoop
+        def toggle_running():
+            is_running = game_thread.running
+            game_thread.set_running(not is_running)
+            control_panel.set_running(not is_running)
+            tray_manager.set_running(not is_running)
+
+        tray_manager.start_stop_requested.connect(toggle_running)
+
+        # System Tray -> Exit
+        def shutdown_app():
+            logger.info("Exit requested from system tray")
+            game_thread.stop()
+            tray_manager.hide()
+            app.quit()
+
+        tray_manager.exit_requested.connect(shutdown_app)
+
+        # Calibration requests (placeholder - can be expanded)
+        def handle_calibration(action: str):
+            logger.info(f"Calibration action requested: {action}")
+            if action == 'auto_resize':
+                tray_manager.show_message("Calibration", "Auto-resize not yet implemented")
+            elif action == 'set_anchor':
+                tray_manager.show_message("Calibration", "Use tools/calibrate_anchors.py")
+            elif action == 'config_regions':
+                tray_manager.show_message("Calibration", "Use tools/calibrate_anchors.py")
+            elif action == 'reset':
+                game_thread.anchor_manager.load_config()
+                tray_manager.show_message("Calibration", "Config reloaded")
+
+        control_panel.calibration_requested.connect(handle_calibration)
+
+        # === Start Application ===
+
+        # Start game thread (paused by default)
+        game_thread.running = False
         game_thread.start()
 
+        # Show windows
+        control_panel.show()
+
+        # Show startup notification
+        if tray_manager.is_available():
+            tray_manager.show_message(
+                "Poker Assistant",
+                "Running in system tray. Click Start to begin.",
+                duration=3000
+            )
+
+        logger.info("All components initialized successfully")
+        logger.info("Control Panel visible, overlay ready")
+        logger.info("Click 'Start' to begin detection")
+
         # Run Qt event loop (blocks until exit)
-        exit_code = display_manager.app.exec_()
+        exit_code = app.exec_()
 
         # Cleanup
         game_thread.stop()
