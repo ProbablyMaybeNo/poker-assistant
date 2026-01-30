@@ -13,6 +13,8 @@ from src.strategy.hand_evaluator import HandEvaluator, HandEvaluation
 from src.strategy.equity_calculator import EquityCalculator
 from src.strategy.pot_odds import PotOddsCalculator
 from src.strategy.preflop_strategy import PreflopStrategy, Position, PreflopAction
+from src.strategy.postflop_strategy import PostflopStrategy, PostflopAction
+from src.strategy.board_analyzer import BoardAnalyzer
 from src.detection.game_state import GameState, BettingRound
 from src.utils.logger import logger
 from src.utils.config_loader import config_loader
@@ -52,9 +54,13 @@ class DecisionEngine:
         self.hand_evaluator = HandEvaluator()
         self.equity_calc = EquityCalculator()
         self.pot_odds_calc = PotOddsCalculator()
+        self.board_analyzer = BoardAnalyzer()
 
         # GTO preflop strategy
         self.preflop_strategy = PreflopStrategy()
+
+        # GTO-approximation postflop strategy
+        self.postflop_strategy = PostflopStrategy()
 
         # Load configuration
         try:
@@ -186,100 +192,69 @@ class DecisionEngine:
                         equity: float,
                         pot_odds: Optional[float]) -> Decision:
         """
-        Make postflop decision using equity + pot odds heuristics.
+        Make postflop decision using board texture + GTO-approximation strategy.
 
-        Strategy based on hand strength categories:
-        - Strong (>0.7): Value bet/raise
-        - Medium (0.4-0.7): Pot odds dependent
-        - Weak (<0.4): Check/fold unless good pot odds
+        Uses PostflopStrategy for texture-aware decisions:
+        - Dry boards: Bet large, high frequency
+        - Wet boards: Bet smaller, check more
+        - Dynamic boards: Polarized strategy
         """
         reasoning = []
-        source = "heuristic"
+        source = "postflop_gto"
 
-        # Calculate stack-to-pot ratio for bet sizing
-        spr = game_state.stack_size / game_state.pot_size if game_state.pot_size > 0 else 10
+        # Analyze board texture
+        board_texture = self.board_analyzer.analyze(game_state.community_cards)
+        reasoning.append(f"Board: {board_texture.texture_category} ({board_texture.high_card}-high)")
 
         # Check if we can check (no bet to call)
         can_check = game_state.current_bet == 0 or game_state.current_bet is None
 
-        # Strong hand (>70% strength)
-        if hand_eval.hand_strength > 0.7:
-            reasoning.append(f"Strong hand: {hand_eval.description}")
-            reasoning.append(f"Equity: {equity:.1f}%")
+        if can_check:
+            # We can bet or check - use c-bet strategy
+            postflop_decision = self.postflop_strategy.get_cbet_action(
+                hand=game_state.hole_cards,
+                board=game_state.community_cards,
+                is_in_position=True,  # Assume IP for now
+                pot_size=game_state.pot_size,
+                num_opponents=max(1, game_state.num_opponents)
+            )
 
-            if can_check:
-                # Bet for value
-                action = "raise"
-                # Bet 66-75% pot with strong hands
-                bet_pct = 0.66 if spr > 3 else 0.75
-                amount_bb = (game_state.pot_size * bet_pct) / self.bb_size
-                confidence = 0.85
-                reasoning.append("Betting for value")
+            action = postflop_decision.action.value
+            if postflop_decision.sizing_pct:
+                amount_bb = (game_state.pot_size * postflop_decision.sizing_pct) / self.bb_size
             else:
-                # Raise for value
-                action = "raise"
-                amount_bb = (game_state.pot_size * 0.75 + game_state.current_bet * 2) / self.bb_size
-                confidence = 0.85
-                reasoning.append("Raising for value")
-
-        # Medium hand (40-70% strength)
-        elif hand_eval.hand_strength > 0.4:
-            reasoning.append(f"Medium hand: {hand_eval.description}")
-            reasoning.append(f"Equity: {equity:.1f}%")
-
-            if can_check:
-                # Mix between check and bet
-                if equity > 55:
-                    action = "raise"
-                    amount_bb = (game_state.pot_size * 0.5) / self.bb_size
-                    confidence = 0.65
-                    reasoning.append("Thin value bet")
-                else:
-                    action = "check"
-                    amount_bb = None
-                    confidence = 0.7
-                    reasoning.append("Pot control with medium hand")
-            else:
-                # Facing bet - use pot odds
-                if pot_odds and self.pot_odds_calc.is_profitable_call(equity, pot_odds):
-                    action = "call"
-                    amount_bb = None
-                    confidence = 0.7
-                    reasoning.append("Calling with good pot odds")
-                    if pot_odds:
-                        reasoning.append(f"Pot odds: {pot_odds:.1f}:1")
-                elif equity > 60:
-                    action = "call"
-                    amount_bb = None
-                    confidence = 0.6
-                    reasoning.append("Calling with equity advantage")
-                else:
-                    action = "fold"
-                    amount_bb = None
-                    confidence = 0.65
-                    reasoning.append("Folding medium hand facing aggression")
-
-        # Weak hand (<40% strength)
-        else:
-            reasoning.append(f"Weak hand: {hand_eval.description}")
-
-            if can_check:
-                action = "check"
                 amount_bb = None
-                confidence = 0.8
-                reasoning.append("Checking with weak hand")
+
+            confidence = postflop_decision.confidence
+            reasoning.append(f"Hand: {postflop_decision.hand_category.value}")
+            reasoning.append(postflop_decision.reasoning)
+            reasoning.append(f"Equity: {equity:.1f}%")
+
+        else:
+            # Facing a bet - use facing bet strategy
+            bet_size_pct = game_state.current_bet / game_state.pot_size if game_state.pot_size > 0 else 0.5
+
+            postflop_decision = self.postflop_strategy.get_facing_bet_action(
+                hand=game_state.hole_cards,
+                board=game_state.community_cards,
+                equity=equity,
+                pot_odds=pot_odds or 2.0,
+                bet_size_pct=bet_size_pct,
+                is_in_position=True
+            )
+
+            action = postflop_decision.action.value
+            if postflop_decision.action == PostflopAction.RAISE and postflop_decision.sizing_pct:
+                amount_bb = (game_state.pot_size * postflop_decision.sizing_pct) / self.bb_size
             else:
-                # Facing bet with weak hand
-                if pot_odds and equity > self.pot_odds_calc.pot_odds_to_percentage(pot_odds) + 5:
-                    action = "call"
-                    amount_bb = None
-                    confidence = 0.5
-                    reasoning.append("Drawing with pot odds")
-                else:
-                    action = "fold"
-                    amount_bb = None
-                    confidence = 0.85
-                    reasoning.append("Folding weak hand")
+                amount_bb = None
+
+            confidence = postflop_decision.confidence
+            reasoning.append(f"Hand: {postflop_decision.hand_category.value}")
+            reasoning.append(postflop_decision.reasoning)
+            if pot_odds:
+                reasoning.append(f"Pot odds: {pot_odds:.1f}:1")
+            reasoning.append(f"Equity: {equity:.1f}%")
 
         return Decision(
             action=action,

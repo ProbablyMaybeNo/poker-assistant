@@ -120,6 +120,13 @@ class PreflopStrategy:
                     self.call_ranges = json.load(f)
                 logger.info(f"Loaded call ranges")
 
+            # Load 4bet ranges
+            four_bet_file = self.database_path / "4bet_ranges.json"
+            if four_bet_file.exists():
+                with open(four_bet_file, 'r') as f:
+                    self.four_bet_ranges = json.load(f)
+                logger.info(f"Loaded 4bet ranges")
+
         except Exception as e:
             logger.error(f"Error loading preflop ranges: {e}")
 

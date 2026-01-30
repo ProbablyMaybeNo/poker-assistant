@@ -1,7 +1,7 @@
 {
   "capture": {
-    "interval_seconds": 2.5,
-    "window_title": "PokerStars",
+    "interval_seconds": 1.0,
+    "window_title": "Ignition",
     "auto_detect_window": true
   },
   "detection": {
@@ -13,10 +13,15 @@
   "overlay": {
     "enabled": true,
     "opacity": 0.9,
-    "position": "bottom_right",
+    "position": "top_left",
     "always_on_top": true,
     "font_size": 14,
-    "color_scheme": "dark"
+    "color_scheme": "dark",
+    "display_pot_odds": true,
+    "display_ev": true,
+    "display_required_equity": true,
+    "hud_width": 320,
+    "hud_height": 240
   },
   "strategy": {
     "style": "tight_aggressive",

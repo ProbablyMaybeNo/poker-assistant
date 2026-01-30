@@ -18,6 +18,8 @@ sys.path.insert(0, str(project_root))
 
 from src.utils.logger import logger
 from src.utils.config_loader import config_loader
+from src.utils.session_logger import SessionLogger
+from src.utils.performance import PerformanceMonitor
 from src.capture.window_finder import WindowFinder
 from src.capture.screen_grabber import ScreenGrabber
 from src.capture.anchor_manager import AnchorManager
@@ -53,6 +55,12 @@ class GameLoop(QThread):
         self.text_reader = TextReader()
         self.tracker = GameStateTracker()
         self.decision_engine = DecisionEngine()
+        self.session_logger = SessionLogger()
+        self.perf = PerformanceMonitor()
+
+        # Frame counter for periodic performance logging
+        self.frame_count = 0
+        self.perf_log_interval = 100  # Log stats every 100 frames
 
         # Load anchor config
         self.anchor_manager.load_config()
@@ -73,57 +81,78 @@ class GameLoop(QThread):
 
     def _process_frame(self):
         """Process single frame: capture -> detect -> decide -> display."""
-        # 1. Find poker window
-        if not self.window_finder.find_window():
-            return
+        with self.perf.track("total_frame"):
+            # 1. Find poker window
+            with self.perf.track("window_find"):
+                if not self.window_finder.find_window():
+                    return
 
-        # 2. Capture full screen
-        screen = self.screen_grabber.capture_screen()
-        if screen is None:
-            return
+            # 2. Capture full screen
+            with self.perf.track("screen_capture"):
+                screen = self.screen_grabber.capture_screen()
+                if screen is None:
+                    return
 
-        # 3. Find anchor and get absolute regions
-        anchor_pos = self.anchor_manager.find_anchor(screen)
-        if anchor_pos is None:
-            logger.debug("Anchor not found on screen")
-            return
+            # 3. Find anchor and get absolute regions
+            with self.perf.track("anchor_detection"):
+                anchor_pos = self.anchor_manager.find_anchor(screen)
+                if anchor_pos is None:
+                    logger.debug("Anchor not found on screen")
+                    return
 
-        ax, ay, _, _ = anchor_pos
-        regions = self.anchor_manager.get_absolute_regions((ax, ay))
+                ax, ay, _, _ = anchor_pos
+                regions = self.anchor_manager.get_absolute_regions((ax, ay))
 
-        # 4. Extract and detect cards
-        hole_img = self.screen_grabber.extract_region(screen, regions.get('hole_cards'))
-        community_img = self.screen_grabber.extract_region(screen, regions.get('community_cards'))
+            # 4. Extract and detect cards
+            with self.perf.track("card_detection"):
+                hole_img = self.screen_grabber.extract_region(screen, regions.get('hole_cards'))
+                community_img = self.screen_grabber.extract_region(screen, regions.get('community_cards'))
 
-        hole_cards = self.card_detector.detect_hand(hole_img, num_cards=2) if hole_img is not None else []
-        community_cards = self.card_detector.detect_community_cards(community_img) if community_img is not None else []
+                hole_cards = self.card_detector.detect_hand(hole_img, num_cards=2) if hole_img is not None else []
+                community_cards = self.card_detector.detect_community_cards(community_img) if community_img is not None else []
 
-        # 5. OCR for pot/stack/bet
-        pot_img = self.screen_grabber.extract_region(screen, regions.get('pot_amount'))
-        stack_img = self.screen_grabber.extract_region(screen, regions.get('player_stack'))
-        bet_img = self.screen_grabber.extract_region(screen, regions.get('current_bet'))
+            # 5. OCR for pot/stack/bet
+            with self.perf.track("ocr_reading"):
+                pot_img = self.screen_grabber.extract_region(screen, regions.get('pot_amount'))
+                stack_img = self.screen_grabber.extract_region(screen, regions.get('player_stack'))
+                bet_img = self.screen_grabber.extract_region(screen, regions.get('current_bet'))
 
-        pot_size = self.text_reader.read_pot_amount(pot_img) if pot_img is not None else None
-        stack_size = self.text_reader.read_stack_size(stack_img) if stack_img is not None else None
-        current_bet = self.text_reader.read_bet_amount(bet_img) if bet_img is not None else None
+                pot_size = self.text_reader.read_pot_amount(pot_img) if pot_img is not None else None
+                stack_size = self.text_reader.read_stack_size(stack_img) if stack_img is not None else None
+                current_bet = self.text_reader.read_bet_amount(bet_img) if bet_img is not None else None
 
-        # 6. Update game state
-        game_state = self.tracker.update_state(
-            hole_cards=hole_cards,
-            community_cards=community_cards,
-            pot_size=pot_size,
-            stack_size=stack_size,
-            current_bet=current_bet
-        )
+            # 6. Update game state
+            game_state = self.tracker.update_state(
+                hole_cards=hole_cards,
+                community_cards=community_cards,
+                pot_size=pot_size,
+                stack_size=stack_size,
+                current_bet=current_bet
+            )
 
-        # 7. Make decision (only if we have hole cards)
-        if len(hole_cards) >= 2:
-            decision = self.decision_engine.decide(game_state)
-            self.update_signal.emit({'decision': decision, 'game_state': game_state})
+            # 7. Make decision (only if we have hole cards)
+            if len(hole_cards) >= 2:
+                with self.perf.track("decision_engine"):
+                    decision = self.decision_engine.decide(game_state)
+
+                self.update_signal.emit({'decision': decision, 'game_state': game_state})
+
+                # 8. Log decision for learning
+                self.session_logger.log_decision(game_state, decision)
+
+        # Periodic performance logging
+        self.frame_count += 1
+        if self.frame_count % self.perf_log_interval == 0:
+            self.perf.log_summary()
+            bottleneck = self.perf.check_bottleneck()
+            if bottleneck:
+                logger.info(f"Current bottleneck: {bottleneck}")
 
     def stop(self):
         """Stop the game loop gracefully."""
         self.running = False
+        self.session_logger.close()
+        self.perf.log_summary()
         self.wait()
 
 
