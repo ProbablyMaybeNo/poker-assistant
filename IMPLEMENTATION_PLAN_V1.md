@@ -51,12 +51,15 @@ The Poker Assistant is a V1.0 release candidate with all core functionality impl
 - Error handling and recovery
 
 #### Task 1.3: UI Testing & Polish
-**Status:** Pending
-**Work Required:**
-- Verify all widgets render correctly
-- Test card selector functionality
-- Test calibration buttons trigger correct actions
-- Verify statistics update in real-time
+**Status:** Complete
+**Files:**
+- `tests/test_ui/test_control_panel.py` - 48 UI tests
+
+**Completed:**
+- Widget rendering tests for all components
+- Card selector functionality (get/set cards, signals)
+- Calibration buttons trigger correct signals
+- Statistics panel updates from decision objects
 
 ### Priority 2: Configuration & Setup
 
@@ -66,11 +69,15 @@ The Poker Assistant is a V1.0 release candidate with all core functionality impl
 - `config/anchor_config.json` - Contains default regions
 
 #### Task 2.2: First-Run Experience
-**Status:** Pending
-**Work Required:**
-- Detect if calibration is needed
-- Guide user through initial setup
-- Provide test mode without live poker window
+**Status:** Complete
+**Files:**
+- `src/ui/control_panel/first_run_wizard.py` - First-run wizard dialog
+
+**Completed:**
+- Detect if calibration is needed (no anchor config)
+- FirstRunWizard dialog with setup options
+- Test mode without live poker window
+- Integrated into main.py startup flow
 
 ### Priority 3: Testing & Validation
 
@@ -86,10 +93,15 @@ The Poker Assistant is a V1.0 release candidate with all core functionality impl
 - pytest framework with markers (unit, integration, slow)
 
 #### Task 3.2: Manual Integration Testing
-**Work Required:**
-- Test with mock poker screenshots
-- Verify end-to-end flow
-- Test manual card entry mode
+**Status:** Complete
+**Files:**
+- `tests/test_integration/test_end_to_end.py` - 17 integration tests
+
+**Completed:**
+- End-to-end decision pipeline tests
+- Manual card entry workflow tests
+- Full hand simulation (preflop to river)
+- Edge case handling (empty cards, all-in, heads up)
 
 ---
 
