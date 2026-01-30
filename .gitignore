@@ -41,3 +41,18 @@ Thumbs.db
 debug_*
 debug_output.txt
 models/test_anchors/
+
+# Session logs (may contain sensitive game data)
+database/learning/
+!database/learning/.gitkeep
+
+# Test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Panel state (user-specific)
+config/panel_state.json
+
+# Windows artifacts
+nul

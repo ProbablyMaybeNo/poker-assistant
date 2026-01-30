@@ -160,27 +160,34 @@ class PokerOverlay(QMainWindow):
             return None
 
 class DisplayManager:
-    """Manages the PyQt application and overlay window."""
-    
+    """Manages the overlay window."""
+
     def __init__(self, region_mapper):
-        self.app = QApplication(sys.argv)
+        # Use existing QApplication if available, otherwise create one
+        self.app = QApplication.instance()
+        if self.app is None:
+            self.app = QApplication(sys.argv)
+
         self.overlay = PokerOverlay(region_mapper)
         self.signals = OverlaySignal()
         self.signals.update_signal.connect(self.overlay.update_data)
-        
-        # Start GUI thread loop in main thread, logic in background
-        # Note: In this architecture, main.py will run the logic loop
-        # and forcefully process events, or run logic in a thread.
-        # Recommended: Logic in thread, GUI in main.
-        
-    def update_overlay(self, decision, game_state):
-        """Thread-safe update trigger."""
-        data = {
-            'decision': decision,
-            'game_state': game_state
-        }
+
+    def update_overlay(self, data):
+        """Thread-safe update trigger.
+
+        Args:
+            data: Dict with 'decision' and 'game_state' keys
+        """
         self.signals.update_signal.emit(data)
-        
+
     def process_events(self):
         """Process GUI events (if running in same thread loop)."""
         self.app.processEvents()
+
+    def show(self):
+        """Show the overlay window."""
+        self.overlay.show()
+
+    def hide(self):
+        """Hide the overlay window."""
+        self.overlay.hide()
