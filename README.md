@@ -1,6 +1,6 @@
 # Poker AI Assistant
 
-An AI-powered poker assistant that uses computer vision to watch your PokerStars game in real-time and provides strategic suggestions via a transparent overlay.
+An AI-powered poker assistant that uses computer vision to watch your poker game in real-time and provides strategic suggestions via a transparent overlay. Currently configured for Ignition Casino.
 
 ## 🎯 Purpose
 
@@ -14,7 +14,7 @@ This is a **learning and practice tool** designed for use with play money only o
 
 ## ⚠️ Disclaimer
 
-**For Educational Purposes Only**: This tool is designed for learning poker strategy and practicing with play money. Using automated assistance in real-money poker games may violate terms of service and is not recommended.
+**For Educational Purposes Only**: This tool is designed for learning poker strategy and practicing with play money. Using automated assistance in real-money poker games may violate terms of service and could result in account penalties. Use responsibly.
 
 ## 🛠️ System Requirements
 
@@ -22,7 +22,7 @@ This is a **learning and practice tool** designed for use with play money only o
 - **Python**: 3.11+ (tested with 3.13.5)
 - **GPU**: RTX 4060 8GB or similar (optional, for GPU acceleration)
 - **RAM**: 64GB recommended
-- **Software**: PokerStars client
+- **Software**: Poker client (configured for Ignition Casino)
 
 ## 📋 Features
 
@@ -225,8 +225,8 @@ See `logs/errors.log` for detailed error information.
 
 ## 📝 Development Status
 
-**Current Phase**: All Phases Complete - Enhancement Mode ✅
-**Status**: Core functionality working, adding GTO ranges and polish
+**Current Version**: V1.0 Release Candidate ✅
+**Status**: Feature complete - ready for testing
 
 ### Completion Summary
 
@@ -236,11 +236,18 @@ See `logs/errors.log` for detailed error information.
 - [x] Phase 4: Strategy Engine - Complete
 - [x] Phase 5: Overlay & Integration - Complete
 
-### Current Focus: Enhancements
-- [ ] Expanding GTO preflop ranges
-- [ ] Adding postflop strategy with board texture
-- [ ] Enhancing overlay with pot odds/EV display
-- [ ] Session logging for learning
+### V1 Enhancements (All Complete) ✅
+- [x] GTO preflop ranges (open/3bet/4bet for all positions)
+- [x] Postflop strategy with board texture analysis
+- [x] Enhanced overlay with pot odds and EV display
+- [x] Session logging for learning data
+- [x] Performance monitoring and bottleneck detection
+
+### V2 Roadmap
+- [ ] Multi-table support
+- [ ] Opponent modeling (VPIP/PFR/AF stats)
+- [ ] Hand history export
+- [ ] GUI calibration tool improvements
 
 ## 🤝 Contributing
 

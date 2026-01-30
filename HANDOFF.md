@@ -37,14 +37,25 @@ The system is modularized into:
 
 ### 3. Strategy Engine (`src/strategy/`)
 
-- `hand_evaluator.py`: Determines hand rank (Flush, Pair, etc.) and granular strength (0.0 - 1.0).
-- `equity_calculator.py`: Runs Monte Carlo sims (1000+ iterations) to estimate Win %.
-- `decision_engine.py`: Combines Equity, Pot Odds, and Rules logic to output Fold/Call/Raise.
+- `hand_evaluator.py`: Determines hand rank and granular strength.
+- `equity_calculator.py`: Monte Carlo sims for Win %.
+- `pot_odds.py`: Calculates pot odds and required equity.
+- `board_analyzer.py` (NEW): Analyzes board texture (dry/wet/dynamic).
+- `preflop_strategy.py` (NEW): GTO-based preflop ranges.
+- `postflop_strategy.py` (NEW): Texture-aware postflop decision logic.
+- `decision_engine.py`: Orchestrates Preflop/Postflop logic and heuristics.
 
 ### 4. UI (`src/ui/`)
 
-- `display_manager.py`: Manages the PyQt5 application.
-- `overlay.py` (Merged into display_manager): Draws the transparent HUD.
+- `display_manager.py`: Manages the PyQt5 application. Handles painting of the overlay.
+- `overlay.py`: Draws the transparent HUD with new EV and Pot Odds display.
+
+### 5. Utilities & Infrastructure (`src/utils/`)
+
+- `performance.py` (NEW): Tracks frame timing and identifies bottlenecks.
+- `session_logger.py` (NEW): Logs all decisions to JSONL for analysis.
+- `logger.py`: Centralized logging.
+- `config_loader.py`: JSON config management.
 
 ## Current Status & Integration
 
@@ -66,7 +77,8 @@ The system is modularized into:
 python src/main.py
 ```
 
-* Ensure a poker client (e.g., PokerStars) or a screenshot of one is visible.
+- Ensure a poker client (e.g., PokerStars) or a screenshot of one is visible.
+
 - The overlay should appear (transparent w/ HUD box).
 
 ### 3. Run Tests
@@ -108,6 +120,7 @@ project/
 
 ## Next Steps for AI Agent
 
-1. **Optimize**: Profile `main.py` loop time.
-2. **Refine**: Improve `DecisionEngine` thresholds based on real hand history analysis.
-3. **UI**: Add "History" or "Opponent Stats" to the overlay.
+1. **Refine Ranges**: Adjust GTO ranges based on specific opponent tendencies (Exploitative Strategy).
+2. **Machine Learning**: Use `session_logger` data to train a model for opponent hand prediction.
+3. **Advanced Overlay**: visualize opponent ranges on the HUD.
+4. **Multi-Table Support**: Expand `window_finder` to handle multiple instances.
