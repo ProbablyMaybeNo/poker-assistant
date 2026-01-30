@@ -1,7 +1,7 @@
 {
   "capture": {
     "interval_seconds": 1.0,
-    "window_title": "Ignition",
+    "window_title": "Poker just got better",
     "auto_detect_window": true
   },
   "detection": {
