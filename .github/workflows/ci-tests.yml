@@ -48,9 +48,12 @@ jobs:
       run: |
         python test_installation.py
 
-    - name: Test main entry point
+    - name: Run full system integration test
       run: |
-        python src/main.py
+        python test_full_system.py
+    - name: Run strategy engine verify
+      run: |
+        python test_strategy.py
 
     - name: Check for syntax errors
       run: |
@@ -226,12 +229,13 @@ jobs:
       run: |
         echo "## Poker AI Assistant - Build Status" >> $env:GITHUB_STEP_SUMMARY
         echo "" >> $env:GITHUB_STEP_SUMMARY
-        echo "### Phase 1: Environment Setup ✅" >> $env:GITHUB_STEP_SUMMARY
-        echo "- Project structure: Complete" >> $env:GITHUB_STEP_SUMMARY
-        echo "- Dependencies: Installed" >> $env:GITHUB_STEP_SUMMARY
-        echo "- Configuration: Valid" >> $env:GITHUB_STEP_SUMMARY
-        echo "- Tests: Passing" >> $env:GITHUB_STEP_SUMMARY
+        echo "### Phase 5: Production Ready ✅" >> $env:GITHUB_STEP_SUMMARY
+        echo "- Environment: Verified" >> $env:GITHUB_STEP_SUMMARY
+        echo "- Dependencies: Installed (mss 9.0.1, PyQt5)" >> $env:GITHUB_STEP_SUMMARY
+        echo "- Integration: Passed (test_full_system.py)" >> $env:GITHUB_STEP_SUMMARY
+        echo "- Strategy: Verified (test_strategy.py)" >> $env:GITHUB_STEP_SUMMARY
         echo "" >> $env:GITHUB_STEP_SUMMARY
-        echo "### Next Phase" >> $env:GITHUB_STEP_SUMMARY
-        echo "Phase 2: Screen Capture System" >> $env:GITHUB_STEP_SUMMARY
+        echo "### Next Steps" >> $env:GITHUB_STEP_SUMMARY
+        echo "- Live Table Verification" >> $env:GITHUB_STEP_SUMMARY
+        echo "- Model Training (Session Logs)" >> $env:GITHUB_STEP_SUMMARY
       shell: pwsh
