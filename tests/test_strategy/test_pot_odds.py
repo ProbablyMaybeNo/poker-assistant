@@ -183,8 +183,10 @@ class TestPotOddsCalculator:
     @pytest.mark.unit
     def test_breakeven_ev_calculation(self):
         """Test breakeven EV calculation."""
-        # Pot is 100, call is 50, need 33.3% equity to break even
-        ev = PotOddsCalculator.calculate_ev(pot_size=100, amount_to_call=50, equity=33.33)
+        # Pot is 100, call is 50
+        # Breakeven: eq * (pot + call) = (1-eq) * call
+        # eq * 150 = (1-eq) * 50 => 200*eq = 50 => eq = 25%
+        ev = PotOddsCalculator.calculate_ev(pot_size=100, amount_to_call=50, equity=25)
         # Should be close to 0
         assert abs(ev) < 5
 
