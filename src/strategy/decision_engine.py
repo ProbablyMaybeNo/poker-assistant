@@ -21,6 +21,26 @@ from src.utils.config_loader import config_loader
 
 
 @dataclass
+class ActionFrequencies:
+    """GTO action frequencies for mixed strategies."""
+    fold: float = 0.0  # 0-100 percentage
+    call: float = 0.0
+    raise_: float = 0.0  # Using raise_ since raise is a keyword
+    check: float = 0.0
+    bet: float = 0.0
+
+    def as_dict(self):
+        """Return as dictionary with clean names."""
+        return {
+            'fold': self.fold,
+            'call': self.call,
+            'raise': self.raise_,
+            'check': self.check,
+            'bet': self.bet
+        }
+
+
+@dataclass
 class Decision:
     """Strategic decision output."""
     action: str  # fold, call, raise, check
@@ -32,6 +52,9 @@ class Decision:
     equity: float  # Win probability percentage
     pot_odds: Optional[float]  # Pot odds ratio
     source: str = "unknown"  # gto_solver, heuristic, or mixed
+    action_frequencies: Optional[ActionFrequencies] = None  # GTO frequencies
+    spr: Optional[float] = None  # Stack-to-pot ratio
+    position_advantage: bool = True  # Whether we have position
 
     def __str__(self):
         action_str = self.action.upper()
@@ -174,6 +197,27 @@ class DecisionEngine:
         reasoning.append(f"Position: {position.value}")
         reasoning.append(f"Equity: {equity:.1f}%")
 
+        # Calculate action frequencies for GTO display
+        freq = preflop_decision.frequency
+        action_freqs = ActionFrequencies()
+        if action == "fold":
+            action_freqs.fold = freq * 100
+            action_freqs.raise_ = (1 - freq) * 100 * 0.3  # Estimate
+            action_freqs.call = (1 - freq) * 100 * 0.7
+        elif action == "raise":
+            action_freqs.raise_ = freq * 100
+            action_freqs.fold = (1 - freq) * 100 * 0.6
+            action_freqs.call = (1 - freq) * 100 * 0.4
+        elif action == "call":
+            action_freqs.call = freq * 100
+            action_freqs.fold = (1 - freq) * 100 * 0.5
+            action_freqs.raise_ = (1 - freq) * 100 * 0.5
+
+        # Calculate SPR
+        spr = None
+        if game_state.pot_size and game_state.pot_size > 0 and game_state.stack_size:
+            spr = game_state.stack_size / game_state.pot_size
+
         return Decision(
             action=action,
             amount_bb=amount_bb,
@@ -183,7 +227,10 @@ class DecisionEngine:
             hand_evaluation=hand_eval,
             equity=equity,
             pot_odds=pot_odds,
-            source=preflop_decision.source
+            source=preflop_decision.source,
+            action_frequencies=action_freqs,
+            spr=spr,
+            position_advantage=position in [Position.BTN, Position.CO]
         )
 
     def _decide_postflop(self,
@@ -256,6 +303,36 @@ class DecisionEngine:
                 reasoning.append(f"Pot odds: {pot_odds:.1f}:1")
             reasoning.append(f"Equity: {equity:.1f}%")
 
+        # Calculate action frequencies based on texture and hand strength
+        action_freqs = ActionFrequencies()
+        if can_check:
+            # In position betting spot
+            if postflop_decision.confidence > 0.7:
+                action_freqs.bet = postflop_decision.confidence * 100
+                action_freqs.check = (1 - postflop_decision.confidence) * 100
+            else:
+                action_freqs.check = 60  # Default check frequency
+                action_freqs.bet = 40
+        else:
+            # Facing a bet
+            if action == "fold":
+                action_freqs.fold = postflop_decision.confidence * 100
+                action_freqs.call = (1 - postflop_decision.confidence) * 50
+                action_freqs.raise_ = (1 - postflop_decision.confidence) * 50
+            elif action == "call":
+                action_freqs.call = postflop_decision.confidence * 100
+                action_freqs.fold = (1 - postflop_decision.confidence) * 60
+                action_freqs.raise_ = (1 - postflop_decision.confidence) * 40
+            elif action == "raise":
+                action_freqs.raise_ = postflop_decision.confidence * 100
+                action_freqs.call = (1 - postflop_decision.confidence) * 60
+                action_freqs.fold = (1 - postflop_decision.confidence) * 40
+
+        # Calculate SPR
+        spr = None
+        if game_state.pot_size and game_state.pot_size > 0 and game_state.stack_size:
+            spr = game_state.stack_size / game_state.pot_size
+
         return Decision(
             action=action,
             amount_bb=amount_bb,
@@ -265,7 +342,10 @@ class DecisionEngine:
             hand_evaluation=hand_eval,
             equity=equity,
             pot_odds=pot_odds,
-            source=source
+            source=source,
+            action_frequencies=action_freqs,
+            spr=spr,
+            position_advantage=True  # Assuming IP for now
         )
 
     def _get_position(self, game_state: GameState) -> Position:

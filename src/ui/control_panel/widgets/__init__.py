@@ -10,6 +10,7 @@ from .statistics_panel import StatisticsPanel
 from .player_table import PlayerTableWidget
 from .amount_display import AmountDisplayWidget
 from .calibration_buttons import CalibrationButtonsWidget
+from .action_frequencies import ActionFrequenciesWidget
 
 __all__ = [
     'CardSelectorWidget',
@@ -20,4 +21,5 @@ __all__ = [
     'PlayerTableWidget',
     'AmountDisplayWidget',
     'CalibrationButtonsWidget',
+    'ActionFrequenciesWidget',
 ]

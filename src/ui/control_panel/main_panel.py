@@ -21,7 +21,7 @@ from .styles import (
 from .widgets import (
     CardSelectorWidget, HandSelectorWidget, CommunitySelectorWidget,
     ActionDisplayWidget, StatisticsPanel, PlayerTableWidget,
-    AmountDisplayWidget, CalibrationButtonsWidget
+    AmountDisplayWidget, CalibrationButtonsWidget, ActionFrequenciesWidget
 )
 
 
@@ -106,6 +106,11 @@ class ControlPanelWindow(QMainWindow):
         self.statistics_panel = StatisticsPanel("STATISTICS")
         self.statistics_panel.setStyleSheet(get_group_box_style())
         main_layout.addWidget(self.statistics_panel)
+
+        # === GTO ACTION FREQUENCIES ===
+        self.action_frequencies = ActionFrequenciesWidget("GTO ACTION FREQUENCIES")
+        self.action_frequencies.setStyleSheet(get_group_box_style())
+        main_layout.addWidget(self.action_frequencies)
 
         # === PLAYERS ===
         self.player_table = PlayerTableWidget("PLAYERS")
@@ -234,6 +239,9 @@ class ControlPanelWindow(QMainWindow):
 
         # Update statistics
         self.statistics_panel.update_from_decision(decision, game_state)
+
+        # Update GTO action frequencies
+        self.action_frequencies.update_from_decision(decision)
 
         # Update amounts if auto-detect
         if game_state:
