@@ -1,1 +1,1 @@
-"""UI module tests."""
+# UI Tests package

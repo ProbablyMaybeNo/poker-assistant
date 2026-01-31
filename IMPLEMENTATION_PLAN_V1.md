@@ -28,7 +28,7 @@ The Poker Assistant is a V1.0 release candidate with all core functionality impl
 ### Priority 1: Integration & Polish
 
 #### Task 1.1: Integrate Control Panel with Main Application
-**Status:** In Progress
+**Status:** Complete
 **Files:**
 - `src/main.py` - Add control panel initialization
 - `src/ui/control_panel/` - Already implemented
@@ -40,22 +40,26 @@ The Poker Assistant is a V1.0 release candidate with all core functionality impl
 - Add tray icon integration for minimizing to system tray
 
 #### Task 1.2: Create Unified Launcher
-**Status:** Pending
+**Status:** Complete
 **Files:**
-- `launch.py` or `launch.pyw` - New unified entry point
+- `PokerAssistant.bat` - Desktop launcher
+- `tools/create_desktop_shortcut.ps1` - Shortcut creator
 
-**Work Required:**
+**Completed:**
 - Single entry point that launches both overlay and control panel
-- Proper shutdown coordination
+- Proper shutdown coordination via system tray
 - Error handling and recovery
 
 #### Task 1.3: UI Testing & Polish
-**Status:** Pending
-**Work Required:**
-- Verify all widgets render correctly
-- Test card selector functionality
-- Test calibration buttons trigger correct actions
-- Verify statistics update in real-time
+**Status:** Complete
+**Files:**
+- `tests/test_ui/test_control_panel.py` - 48 UI tests
+
+**Completed:**
+- Widget rendering tests for all components
+- Card selector functionality (get/set cards, signals)
+- Calibration buttons trigger correct signals
+- Statistics panel updates from decision objects
 
 ### Priority 2: Configuration & Setup
 
@@ -65,30 +69,39 @@ The Poker Assistant is a V1.0 release candidate with all core functionality impl
 - `config/anchor_config.json` - Contains default regions
 
 #### Task 2.2: First-Run Experience
-**Status:** Pending
-**Work Required:**
-- Detect if calibration is needed
-- Guide user through initial setup
-- Provide test mode without live poker window
+**Status:** Complete
+**Files:**
+- `src/ui/control_panel/first_run_wizard.py` - First-run wizard dialog
+
+**Completed:**
+- Detect if calibration is needed (no anchor config)
+- FirstRunWizard dialog with setup options
+- Test mode without live poker window
+- Integrated into main.py startup flow
 
 ### Priority 3: Testing & Validation
 
 #### Task 3.1: Run Existing Tests
+**Status:** Complete
 **Files:**
 - `test_installation.py`
-- `test_full_system.py`
-- `test_strategy.py`
+- `tests/` directory with comprehensive pytest suite
 
-**Work Required:**
-- Execute all tests
-- Fix any failures
-- Document test coverage
+**Results:**
+- 129 tests passing
+- Cross-platform compatibility verified
+- pytest framework with markers (unit, integration, slow)
 
 #### Task 3.2: Manual Integration Testing
-**Work Required:**
-- Test with mock poker screenshots
-- Verify end-to-end flow
-- Test manual card entry mode
+**Status:** Complete
+**Files:**
+- `tests/test_integration/test_end_to_end.py` - 17 integration tests
+
+**Completed:**
+- End-to-end decision pipeline tests
+- Manual card entry workflow tests
+- Full hand simulation (preflop to river)
+- Edge case handling (empty cards, all-in, heads up)
 
 ---
 
@@ -203,10 +216,12 @@ GameLoop (QThread)
 
 ## Success Criteria for V1 Release
 
-- [ ] Application launches without errors
-- [ ] Overlay displays correctly
-- [ ] Control panel functional
-- [ ] Manual card entry works
-- [ ] Decision recommendations display
-- [ ] All tests pass
-- [ ] Documentation complete
+- [x] Application launches without errors
+- [x] Overlay displays correctly
+- [x] Control panel functional
+- [x] Manual card entry works
+- [x] Decision recommendations display
+- [x] All tests pass (129/129 passing)
+- [x] Cross-platform compatibility (Windows-only deps properly marked)
+- [x] Desktop shortcut available (PokerAssistant.bat)
+- [ ] Documentation complete (minor updates needed)

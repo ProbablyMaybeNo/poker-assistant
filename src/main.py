@@ -31,7 +31,7 @@ from src.detection.text_reader import TextReader
 from src.detection.game_state import GameStateTracker
 from src.strategy.decision_engine import DecisionEngine
 from src.ui.display_manager import DisplayManager
-from src.ui.control_panel import ControlPanelWindow, SystemTrayManager
+from src.ui.control_panel import ControlPanelWindow, SystemTrayManager, needs_first_run_setup, show_first_run_wizard
 
 
 class GameLoop(QThread):
@@ -207,6 +207,24 @@ def main():
         # Initialize Qt Application
         app = QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)  # Keep running in tray
+
+        # Check if first-run setup is needed
+        config_dir = project_root / 'config'
+        if needs_first_run_setup(config_dir):
+            logger.info("First-run detected - showing setup wizard")
+            setup_mode = show_first_run_wizard()
+
+            if setup_mode is None:
+                # User cancelled - exit
+                logger.info("Setup wizard cancelled - exiting")
+                return 0
+            elif setup_mode == 'calibration':
+                logger.info("Calibration mode selected - please run calibration tool")
+                # Continue to main app, but show message
+            elif setup_mode == 'test':
+                logger.info("Test mode selected - manual card entry enabled")
+            elif setup_mode == 'skip':
+                logger.info("Setup skipped - continuing with defaults")
 
         # Initialize Display Manager (overlay)
         display_manager = DisplayManager(None)
